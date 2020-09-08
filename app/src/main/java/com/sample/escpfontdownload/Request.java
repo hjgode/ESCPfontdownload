@@ -4,7 +4,9 @@ public class Request{
     public String Text=null;
     public byte[] Data=null;
     public String ExpectedResponse=null;
-    public int ExtendedTimeout=0;
+    public char[] ExpectedChars=null;
+
+    public int ExtendedTimeout=1;
 
     public Request(String text, String expectedResponse)
     {
@@ -18,10 +20,24 @@ public class Request{
         this.ExpectedResponse = expectedResponse;
     }
 
+    public Request(byte[] data, char[] expectedData)
+    {
+        this.Data=data;
+        this.ExpectedChars=expectedData;
+
+    }
+
     public Request(byte[] data, String expectedResponse, int extendedTimeout)
     {
         this.Data=data;
         this.ExpectedResponse=expectedResponse;
+        this.ExtendedTimeout = extendedTimeout;
+    }
+
+    public Request(byte[] data, char[] expectedData, int extendedTimeout)
+    {
+        this.Data=data;
+        this.ExpectedChars=expectedData;
         this.ExtendedTimeout = extendedTimeout;
     }
 

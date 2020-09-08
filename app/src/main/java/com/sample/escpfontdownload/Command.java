@@ -98,6 +98,7 @@ public class Command {
         }
     }
 
+
     String read(final int timeout){
         utils.Log("read: ..."+timeout);
         byte[] buffer = new byte[1024];  // buffer (our data)
@@ -172,7 +173,7 @@ public class Command {
         EasyPrintMode();
         byte[] bytes= toBytes(("{SC,N1 "+shortName+",N5 "+ name +",D "+description+"}").toCharArray());
         this.Execute(new Request(bytes, ""));
-        SendFile(file, "{A.X}");// or is it: SendFile(file, "{A?X}");
+        SendFile(file, new char[]{0x7B, 0x41, 0xE5, 0x58, 0x7D} /*"{A.X}"*/);// or is it: SendFile(file, "{A?X}");
 
         //End file download
 /*        ASCII
@@ -180,7 +181,7 @@ public class Command {
         Hex
         7B 45 61 18 7D
 */
-        this.Execute(new Request(new  byte[]{0x7b,0x45, 0x61, 0x18, 0x7D}, "{W.\u0012*}{D@\u0008}"));
+        this.Execute(new Request(new  byte[]{0x7b,0x45, 0x61, 0x2E, 0x7D}, new char[]{'{','D','@',0x08,'}'})); // "{W.\u0012*}{D@\u0008}"));
         // after all we should read: {W.*}{D@.}, "7B 57 12 2A 7D 7B 44 40 08 7D"
         LinePrintMode();
     }
@@ -195,7 +196,7 @@ public class Command {
         Date date=new Date(fileTime);
         String datetime=String.format("MM/dd/yyyy", date);
         this.Execute(new Request(String.format("{SG,N1 "+shortName+ ",N5 " +name +",D " +description +  ",CD " + datetime+" }"), ""));
-        this.SendFile(file, "\\{W.\\*\\}\\{R.z\\}");
+        this.SendFile(file, "\\{W.\\*\\}\\{R.z\\}".toCharArray());
         LinePrintMode();
     }
 
@@ -237,7 +238,7 @@ public class Command {
                 utils.Log("Execute: wrote "+request.Data.length +" bytes");
             }
             //is there any expected response?
-            if(request.ExpectedResponse.length()>0) {
+            if(request.ExpectedResponse!=null && request.ExpectedResponse.length()>0) {
                 utils.Log("Execute: looking for "+request.ExpectedResponse);
                 String answer = read(request.ExtendedTimeout);
                 if (answer.length() > 0) {
@@ -248,6 +249,18 @@ public class Command {
                         utils.Log("Execute: "+request.ExpectedResponse +" NOT received: "+answer);
                     }
                 }
+            }else if(request.ExpectedChars!=null){
+                utils.Log("Execute: looking for chars: "+ new String(request.ExpectedChars));
+                String answer = read(request.ExtendedTimeout);
+                if (answer.length() > 0) {
+                    if (answer.equals(request.ExpectedResponse)) {
+                        //response matches expectation
+                        utils.Log("Execute: " + request.ExpectedResponse + " received");
+                    }else{
+                        utils.Log("Execute: "+request.ExpectedResponse +" NOT received: "+answer);
+                    }
+                }
+
             }else{
                 utils.Log("Execute: no response requested");
             }
@@ -375,7 +388,7 @@ public class Command {
     © 2007-2011 Intermec Technologies Corporation. All rights reserved.
 
      */
-    void SendFile(File file, String blockresponse){
+    void SendFile(File file, char[] blockresponse){
         int seqNum = 32; //sequence number, starts at 0x20
         FileInputStream fileInputStream=null;
         try {
@@ -411,7 +424,7 @@ public class Command {
                 */
 
                 utils.Log("====== numArray =======");
-                utils.Log(utils.dumpHexString(numArray, 0, 16));
+                utils.Log(utils.dumpHexString(numArray, 0, 32));
                     byte[] bytes = new byte[numRead + 2];
                     bytes[0] = (byte) (numRead % 256); // will be 00
                     bytes[1] = (byte) (numRead / 256); // will be 10  => 0x1000 = 4096
@@ -420,14 +433,14 @@ public class Command {
                     System.arraycopy(numArray, 0, bytes, 2, numRead);
 
                     utils.Log("====== bytes =======");
-                    utils.Log(utils.dumpHexString(bytes, 0, 16));
+                    utils.Log(utils.dumpHexString(bytes, 0, 32));
 
                     //bytes is now prepended with num bytes in front
                     int chksum = Crc16x.crc16(bytes); //chksum includes two bytes for size at beginning
 
                     byte[] data = new byte[bytes.length + 5 ];
                     data[0] = (byte) 123; // this is a {
-                    data[1] = (byte) seqNum++; // magic number?, no, just a blank (0x20, 32)
+                    data[1] = (byte) seqNum; // magic number?, no, just a blank (0x20, 32), a sequence number that is constant?!
                     //Do we need to send a semicolon between the fields and data?
                     //like {seqNum;size;data;crc}
 
@@ -435,7 +448,7 @@ public class Command {
                     System.arraycopy(bytes, 0, data, 2, bytes.length);
 
                     utils.Log("====== data =======");
-                    utils.Log(utils.dumpHexString(data, 0, 16));
+                    utils.Log(utils.dumpHexString(data, 0, 32));
 
                     //add chksum at end and then a }
                     data[data.length-3]=(byte)(chksum % 256);
